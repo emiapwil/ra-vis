@@ -38,7 +38,7 @@
             <select id="topolist" onchange="selectTopology(this.value)">
             </select>
             <p><label>Please type the route algebra expression</label></p>
-            <textarea type="text" onchange="setRouteAlgebraExpr(this.value)">
+            <textarea type="text">
             </textarea>
             <input type="submit" value="Submit" onclick="submitQuery()"/>
         </div>
@@ -46,144 +46,176 @@
             <svg></svg>
         </div>
         <script>
-         const topoListUrl = 'http://localhost:5000/topologylist.json'
-         fetch(topoListUrl).then(r => r.json())
-                           .then(topoList => {
-                               topoList.forEach(topo => d3.select('select')
-                                                          .append('option')
-                                                          .attr('value', topo)
-                                                          .text(topo))
-                           });
 
-         var draw = function(width, height, data) {
-             var nodes = data.nodes.map(d => Object.create(d));
-             var links = data.links.map(d => Object.create(d));
+         var tridentFrontend = function () {
+             const topoListUrl = 'http://localhost:5000/topologylist.json';
+             const setTopologyUrl = 'http://localhost:5000/topology/{0}.json';
+             const queryUrl = 'http://localhost:5000/query';
 
-             var svg = d3.select('svg')
-                         .attr('width', width)
-                         .attr('height', height);
-
-             // Now we create a force layout object and define its properties.
-             // Those include the dimensions of the visualization and the arrays
-             // of nodes and links.
-
-             const simulation = d3.forceSimulation(nodes)
-                                  .force("link", d3.forceLink(links))
-                                  .force("charge", d3.forceManyBody());
-
-             svg.selectAll('.link')
-                .data([])
-                .exit()
-                .remove();
-             svg.selectAll('.node')
-                .data([])
-                .exit()
-                .remove();
-             var link = svg.selectAll('.link')
-                           .data(links)
-                           .enter().append('line')
-                           .attr('class', 'link')
-                           .attr('x1', d => d.source.x)
-                           .attr('y1', d => d.source.y)
-                           .attr('x2', d => d.target.x)
-                           .attr('y2', d => d.target.y)
-                           .attr('id', d => d.id);
-
-             var node = svg.selectAll('.node')
-                           .data(nodes)
-                           .enter().append('circle')
-                           .attr('class', 'node')
-                           .attr('r', d => d.r)
-                           .attr('cx', d => d.x)
-                           .attr('cy', d => d.y)
-                           .attr('id', d => d.index)
-                           .attr('label', d => d.label);
-
-             d3.selectAll('.node')
-               .on('mouseover', d => { console.log(d) })
-               .on('mouseout', d => {console.log(d) });
-             d3.selectAll('.link')
-               .on('mouseover', d => { console.log(d) })
-               .on('mouseout', d => {console.log(d) });
-
-         };
-
-         var selected = [];
-         var speed = 250;
-         function highlight(path) {
-             var t = d3.transition()
-                       .ease(d3.easeLinear);
-             console.log(path);
-             const svg = d3.select('svg');
-             svg.selectAll('.node')
-                .filter(d => (selected.findIndex(e => e == d.index) >= 0))
-                .attr('selected', 'false');
-             path.forEach(function (node, index) {
-                 svg.selectAll('.node')
-                    .filter(d => (node == d.index))
-                    .transition()
-                    .delay((index + 1) * speed)
-                    .attr('selected', 'true');
-             });
-             selected = path;
-         };
-
-         var width = 640, height = 480;
-
-         // Define the data for the example. In general, a force layout
-         // requires two data arrays. The first array, here named `nodes`,
-         // contains the object that are the focal point of the visualization.
-         // The second array, called `links` below, identifies all the links
-         // between the nodes. (The more mathematical term is "edges.")
-
-         // For the simplest possible example we only define two nodes. As
-         // far as D3 is concerned, nodes are arbitrary objects. Normally the
-         // objects wouldn't be initialized with `x` and `y` properties like
-         // we're doing below. When those properties are present, they tell
-         // D3 where to place the nodes before the force layout starts its
-         // magic. More typically, they're left out of the nodes and D3 picks
-         // random locations for each node. We're defining them here so we can
-         // get a consistent application of the layout which lets us see the
-         // effects of different properties.
-
-         function selectTopology(topo) {
-             console.log(topo);
-             const url = 'http://localhost:5000/topology/' + topo + '.json';
-             fetch(url).then(r => r.json())
-                       .then(data => draw(width, height, data));
-         }
-
-         var queryForm = function () {
-             var value = $('textarea').value;
-
-             function setValue(v) {
-                 console.log("set value: " + v);
-                 value = v;
+             var config = {
+                 margin: 15,
+                 width: 800,
+                 height: 300,
+                 radiusRange: [5, 15],
+                 transitionDelay: 250
              }
 
-             function submit() {
-                 const url = 'http://localhost:5000/query';
-                 fetch(url, {
-                     body: value,
+             var currentQuery = {
+                 expr: '',
+                 selected: []
+             };
+
+             function prepareTopologyList() {
+                 fetch(topoListUrl).then(r => r.json())
+                                   .then(topoList => {
+                                       topoList.forEach(topo => d3.select('select')
+                                                                  .append('option')
+                                                                  .attr('value', topo)
+                                                                  .text(topo))
+                                   });
+             }
+
+             function transform(v, rangeV, rangeE) {
+                 const minV = rangeV[0], maxV = rangeV[1];
+                 const minE = rangeE[0], maxE = rangeE[1];
+                 return (v - minV) / (maxV - minV) * (maxE - minE) + minE;
+             }
+
+             function format(pattern) {
+                 if (arguments.length == 0) {
+                     return pattern;
+                 }
+                 var args = Array.prototype.slice.call(arguments, 1);
+                 return pattern.replace(/\{(\d+)\}/g, function(m, i){
+                     return args[i];
+                 });
+             }
+
+             function fit(data, accessor, updater, rangeE) {
+                 const minValue = d3.min(data, accessor);
+                 const maxValue = d3.max(data, accessor);
+                 const rangeV = [minValue, maxValue];
+
+                 data.forEach(d => {
+                     updater(d, transform(accessor(d), rangeV, rangeE));
+                 });
+             }
+
+             function scaleTopologyLayout(nodes, links) {
+                 const widthRange = [config.margin, config.width - config.margin];
+                 const heightRange = [config.margin, config.height - config.margin];
+                 const radiusRange = config.radiusRange;
+
+                 fit(nodes, d => d.x, function (d, x) { d.x = x; }, widthRange);
+                 fit(nodes, d => d.y, function (d, y) { d.y = y; }, heightRange);
+                 fit(nodes, d => d.r, function (d, r) { d.r = r; }, radiusRange);
+             }
+
+             function initializeGraph(data) {
+                 var nodes = data.nodes.map(d => Object.create(d));
+                 var links = data.links.map(d => Object.create(d));
+
+                 scaleTopologyLayout(nodes, links);
+
+                 var svg = d3.select('svg')
+                             .attr('width', config.width)
+                             .attr('height', config.height);
+
+                 const simulation = d3.forceSimulation(nodes)
+                                      .force("link", d3.forceLink(links))
+                                      .force("charge", d3.forceManyBody());
+
+                 svg.selectAll('.link')
+                    .data([])
+                    .exit()
+                    .remove();
+                 svg.selectAll('.node')
+                    .data([])
+                    .exit()
+                    .remove();
+                 var link = svg.selectAll('.link')
+                               .data(links)
+                               .enter().append('line')
+                               .attr('class', 'link')
+                               .attr('x1', d => d.source.x)
+                               .attr('y1', d => d.source.y)
+                               .attr('x2', d => d.target.x)
+                               .attr('y2', d => d.target.y)
+                               .attr('id', d => d.id);
+
+                 var node = svg.selectAll('.node')
+                               .data(nodes)
+                               .enter().append('circle')
+                               .attr('class', 'node')
+                               .attr('r', d => d.r)
+                               .attr('cx', d => d.x)
+                               .attr('cy', d => d.y)
+                               .attr('id', d => d.index)
+                               .attr('label', d => d.label);
+
+                 d3.selectAll('.node')
+                   .on('mouseover', d => { console.log(d) })
+                   .on('mouseout', d => {console.log(d) });
+                 d3.selectAll('.link')
+                   .on('mouseover', d => { console.log(d) })
+                   .on('mouseout', d => {console.log(d) });
+
+             }
+
+             function setTopology(topo) {
+                 const url = format(setTopologyUrl, topo);
+                 console.log(url);
+                 fetch(url).then(r => r.json())
+                           .then(data => initializeGraph(data));
+             }
+
+             function updatePath(oldPath, newPath) {
+                 const svg = d3.select('svg');
+                 svg.selectAll('.node')
+                    .filter(d => (oldPath.findIndex(e => e == d.index) >= 0))
+                    .attr('selected', 'false');
+                 newPath.forEach(function (node, index) {
+                     svg.selectAll('.node')
+                        .filter(d => (node == d.index))
+                        .transition()
+                        .delay((index + 1) * config.transitionDelay)
+                        .attr('selected', 'true');
+                 });
+             }
+
+             function query(expr) {
+                 fetch(queryUrl, {
+                     body: expr,
                      method: 'POST'
                  }).then(r => r.json())
-                 .then(path => highlight(path));
+                   .then(path => {
+                       updatePath(currentQuery.selected, path);
+                       currentQuery.expr = expr;
+                       currentQuery.selected = path;
+                   });
              }
 
              return {
-                 setValue: setValue,
-                 submit: submit
+                 config: config,
+                 prepareTopologyList: prepareTopologyList,
+                 initializeGraph: initializeGraph,
+                 setTopology: setTopology,
+                 query: query
              };
 
          }();
 
-         function setRouteAlgebraExpr(value) {
-             queryForm.setValue(value);
-         };
+         tridentFrontend.prepareTopologyList();
 
          function submitQuery() {
-             queryForm.submit();
+             const expr = $('textarea')[0].value;
+             console.log(expr);
+             tridentFrontend.query(expr);
          };
+
+         function selectTopology(topo) {
+             tridentFrontend.setTopology(topo);
+         }
 
         </script>
     </body>

@@ -31,32 +31,9 @@ def get_topology_list():
 def load_topology(name):
     filename = 'dataset/sources/%s.graphml' % (name)
     g = nx.read_graphml(filename)
+
     pos = nx.nx_pydot.graphviz_layout(g)
-
-    margin = 10
-    width = 640
-    height = 480
-
-    minx = min(map(lambda n: pos[n][0], pos))
-    maxx = max(map(lambda n: pos[n][0], pos))
-    miny = min(map(lambda n: pos[n][1], pos))
-    maxy = max(map(lambda n: pos[n][1], pos))
-
-    pos2 = pos.copy()
-    for n in pos2:
-        ox, oy = pos2[n]
-        x = (ox - minx) * (width - 2 * margin) / (maxx - minx) + margin
-        y = (oy - miny) * (height - 2 * margin) / (maxy - miny) + margin
-        pos[n] = [x, y]
-
     radius = {n: g.degree(n) for n in g.nodes}
-    minor = min([radius[n] for n in radius])
-    maxor = max([radius[n] for n in radius])
-
-    minr, maxr = 5, 15
-
-    for n in radius:
-        radius[n] = (radius[n] - minor) * (maxr - minr)/ (maxor - minor) + minr
 
     nodes = []
     nindex = {}
