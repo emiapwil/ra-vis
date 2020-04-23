@@ -21,6 +21,11 @@
              stroke-width: 2px;
          }
 
+         .node[view=true], .link[view=true] {
+             stroke: black;
+             stroke-width: 3px;
+         }
+
          .node[selected=true] {
              fill: #000;
          }
@@ -29,6 +34,10 @@
              stroke: #777;
              stroke-width: 2px;
          }
+
+         .link[selected=true] {
+             stroke: #000;
+         };
         </style>
     </head>
 
@@ -59,11 +68,6 @@
                  radiusRange: [5, 15],
                  transitionDelay: 250
              }
-
-             var currentQuery = {
-                 expr: '',
-                 selected: []
-             };
 
              function prepareTopologyList() {
                  fetch(topoListUrl).then(r => r.json())
@@ -111,9 +115,11 @@
                  fit(nodes, d => d.r, function (d, r) { d.r = r; }, radiusRange);
              }
 
+             var nodes, links;
+
              function initializeGraph(data) {
-                 var nodes = data.nodes.map(d => Object.create(d));
-                 var links = data.links.map(d => Object.create(d));
+                 nodes = data.nodes.map(d => Object.create(d));
+                 links = data.links.map(d => Object.create(d));
 
                  scaleTopologyLayout(nodes, links);
 
@@ -141,7 +147,7 @@
                                .attr('y1', d => d.source.y)
                                .attr('x2', d => d.target.x)
                                .attr('y2', d => d.target.y)
-                               .attr('id', d => d.id);
+                               .attr('index', d => d.index);
 
                  var node = svg.selectAll('.node')
                                .data(nodes)
@@ -150,16 +156,38 @@
                                .attr('r', d => d.r)
                                .attr('cx', d => d.x)
                                .attr('cy', d => d.y)
-                               .attr('id', d => d.index)
+                               .attr('index', d => d.index)
                                .attr('label', d => d.label);
 
                  d3.selectAll('.node')
-                   .on('mouseover', d => { console.log(d) })
-                   .on('mouseout', d => {console.log(d) });
-                 d3.selectAll('.link')
-                   .on('mouseover', d => { console.log(d) })
-                   .on('mouseout', d => {console.log(d) });
+                   .on('mouseover', d => {
+                       const selector = format(indexSelector, 'node', d.index);
+                       d3.select(selector).attr('view', true);
+                   })
+                   .on('mouseout', d => {
+                       const selector = format(indexSelector, 'node', d.index);
+                       d3.select(selector).attr('view', false);
+                   });
 
+                 d3.selectAll('.link')
+                   .on('mouseover', d => {
+                       const selector = format(indexSelector, 'link', d.index);
+                       const src = format(indexSelector, 'node', d.source.index);
+                       const dst = format(indexSelector, 'node', d.target.index);
+
+                       d3.select(selector).attr('view', true);
+                       d3.select(src).attr('view', true);
+                       d3.select(dst).attr('view', true);
+                   })
+                   .on('mouseout', d => {
+                       const selector = format(indexSelector, 'link', d.index);
+                       const src = format(indexSelector, 'node', d.source.index);
+                       const dst = format(indexSelector, 'node', d.target.index);
+
+                       d3.select(selector).attr('view', false);
+                       d3.select(src).attr('view', false);
+                       d3.select(dst).attr('view', false);
+                   });
              }
 
              function setTopology(topo) {
@@ -169,29 +197,46 @@
                            .then(data => initializeGraph(data));
              }
 
-             function updatePath(oldPath, newPath) {
+             const indexSelector = '.{0}[index="{1}"]'
+
+             function select(selectedLinks, status, transition) {
                  const svg = d3.select('svg');
-                 svg.selectAll('.node')
-                    .filter(d => (oldPath.findIndex(e => e == d.index) >= 0))
-                    .attr('selected', 'false');
-                 newPath.forEach(function (node, index) {
-                     svg.selectAll('.node')
-                        .filter(d => (node == d.index))
-                        .transition()
-                        .delay((index + 1) * config.transitionDelay)
-                        .attr('selected', 'true');
+                 selectedLinks.forEach(function (link, index) {
+                     const srcIndex = format(indexSelector, 'node', link.source.index);
+                     const dstIndex = format(indexSelector, 'node', link.target.index);
+                     const linkIndex = format(indexSelector, 'link', link.index);
+
+                     transition(svg.select(srcIndex), index).attr('selected', status);
+                     transition(svg.select(dstIndex), index).attr('selected', status);
+                     transition(svg.select(linkIndex), index).attr('selected', status);
                  });
              }
+             function updatePath(expr, selected) {
+                 const selectedLinks = selected.map(s => links.filter(l => l.index == s)[0])
+
+                 select(currentQuery.selected, false, s => s);
+                 select(selectedLinks, true, function (s, index) {
+                     return s.transition().delay((index + 1) * config.transitionDelay)
+                 });
+
+                 console.log(selectedLinks);
+
+                 currentQuery.expr = expr;
+                 currentQuery.selected = selectedLinks;
+             }
+
+             var currentQuery = {
+                 expr: '',
+                 selected: []
+             };
 
              function query(expr) {
                  fetch(queryUrl, {
                      body: expr,
                      method: 'POST'
                  }).then(r => r.json())
-                   .then(path => {
-                       updatePath(currentQuery.selected, path);
-                       currentQuery.expr = expr;
-                       currentQuery.selected = path;
+                   .then(selected => {
+                       updatePath(expr, selected);
                    });
              }
 

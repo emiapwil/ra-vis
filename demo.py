@@ -24,7 +24,7 @@ def assets(dir_name, name):
 def get_topology_list():
     import glob
     file_list = glob.glob('dataset/sources/*.graphml')
-    topo_list = map(lambda f: f.split('/')[-1].split('.')[0], file_list)
+    topo_list = sorted(map(lambda f: f.split('/')[-1].split('.')[0], file_list))
     return json.dumps(list(topo_list))
 
 @app.route('/topology/<name>.json')
@@ -52,6 +52,7 @@ def load_topology(name):
     links = []
     for u, v, e in g.edges(data=True):
         link = e.copy()
+        e['id'] = len(links)
         e['source'] = nindex[u]
         e['target'] = nindex[v]
         links += [e]
