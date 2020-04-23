@@ -21,6 +21,27 @@
              stroke-width: 2px;
          }
 
+         #tooltip table {
+             border: 2px solid #777;
+         }
+
+         #tooltip tr {
+             border-bottom: 1px solid #777;
+         }
+
+         #tooltip td {
+             padding: 0px 10px 0px 10px;
+         }
+
+         #tooltip .key {
+             background-color: blue;
+             color: white;
+         }
+
+         #tooltip .value {
+             background-color: white;
+         }
+
          .node[view=true], .link[view=true] {
              stroke: black;
              stroke-width: 3px;
@@ -42,16 +63,17 @@
     </head>
 
     <body>
-        <div class="col-md-6">
+        <div class="col-md-6" id="inputs">
             <p><label>Please select the demo topology</label></p>
             <select id="topolist" onchange="selectTopology(this.value)">
             </select>
             <p><label>Please type the route algebra expression</label></p>
-            <textarea type="text">
+            <textarea type="text" value=''
+                      placeholder='Please input the route algebra expression'>
             </textarea>
             <input type="submit" value="Submit" onclick="submitQuery()"/>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-6" id="canvas">
             <svg></svg>
         </div>
         <script>
@@ -117,19 +139,60 @@
 
              var nodes, links;
 
+             function toggleTooltips(selected, show) {
+                 if (show == true) {
+                     x = selected.x + selected.r;
+                     y = selected.y + selected.r;
+
+                     var info = d3.select('#canvas')
+                                  .append('div')
+                                  .attr('id', 'tooltip')
+                                  .style('position', 'relative')
+                                  .style('left', format('{0}px', x))
+                                  .style('top', format('{0}px', - config.height + y));
+
+                     var table = info.append('table');
+
+                     var tr = table.append('tr');
+
+                     tr.append('td').attr('class', 'key').text('Label');
+                     tr.append('td').attr('class', 'value').text(selected.label);
+
+                     selected.proplist.forEach(prop => {
+                         var tr = table.append('tr');
+                         tr.append('td')
+                           .attr('class', 'key')
+                           .text(prop);
+                         tr.append('td')
+                           .attr('class', 'data')
+                           .text(selected.properties[prop]);
+                     });
+                 } else {
+                     d3.select('#tooltip').remove();
+                 }
+             }
+
              function initializeGraph(data) {
                  nodes = data.nodes.map(d => Object.create(d));
                  links = data.links.map(d => Object.create(d));
 
                  scaleTopologyLayout(nodes, links);
 
+                 nodes.forEach(function (node, index) {
+                     node.index = index;
+                 });
+                 links.forEach(function (link, index) {
+                     link.source = nodes[link.source];
+                     link.target = nodes[link.target];
+                     link.index = index;
+                     link.x = (link.source.x + link.target.x) / 2;
+                     link.y = (link.source.y + link.target.y) / 2;
+                     link.r = 0;
+                 });
+
                  var svg = d3.select('svg')
                              .attr('width', config.width)
                              .attr('height', config.height);
-
-                 const simulation = d3.forceSimulation(nodes)
-                                      .force("link", d3.forceLink(links))
-                                      .force("charge", d3.forceManyBody());
 
                  svg.selectAll('.link')
                     .data([])
@@ -162,15 +225,18 @@
                  d3.selectAll('.node')
                    .on('mouseover', d => {
                        const selector = format(indexSelector, 'node', d.index);
+                       toggleTooltips(d, true);
                        d3.select(selector).attr('view', true);
                    })
                    .on('mouseout', d => {
                        const selector = format(indexSelector, 'node', d.index);
+                       toggleTooltips(d, false);
                        d3.select(selector).attr('view', false);
                    });
 
                  d3.selectAll('.link')
                    .on('mouseover', d => {
+                       console.log(d);
                        const selector = format(indexSelector, 'link', d.index);
                        const src = format(indexSelector, 'node', d.source.index);
                        const dst = format(indexSelector, 'node', d.target.index);
@@ -178,6 +244,8 @@
                        d3.select(selector).attr('view', true);
                        d3.select(src).attr('view', true);
                        d3.select(dst).attr('view', true);
+
+                       toggleTooltips(d, true);
                    })
                    .on('mouseout', d => {
                        const selector = format(indexSelector, 'link', d.index);
@@ -187,6 +255,8 @@
                        d3.select(selector).attr('view', false);
                        d3.select(src).attr('view', false);
                        d3.select(dst).attr('view', false);
+
+                       toggleTooltips(d, false);
                    });
              }
 
@@ -211,6 +281,7 @@
                      transition(svg.select(linkIndex), index).attr('selected', status);
                  });
              }
+
              function updatePath(expr, selected) {
                  const selectedLinks = selected.map(s => links.filter(l => l.index == s)[0])
 
@@ -218,8 +289,6 @@
                  select(selectedLinks, true, function (s, index) {
                      return s.transition().delay((index + 1) * config.transitionDelay)
                  });
-
-                 console.log(selectedLinks);
 
                  currentQuery.expr = expr;
                  currentQuery.selected = selectedLinks;
@@ -235,9 +304,7 @@
                      body: expr,
                      method: 'POST'
                  }).then(r => r.json())
-                   .then(selected => {
-                       updatePath(expr, selected);
-                   });
+                   .then(selected => { updatePath(expr, selected); });
              }
 
              return {

@@ -27,6 +27,16 @@ def get_topology_list():
     topo_list = sorted(map(lambda f: f.split('/')[-1].split('.')[0], file_list))
     return json.dumps(list(topo_list))
 
+def cleanup_node(node):
+    node = node.copy()
+    if 'x' in node:
+        del node['x']
+    if 'y' in node:
+        del node['y']
+    if 'label' in node:
+        del node['label']
+    return list(node.keys()), node
+
 @app.route('/topology/<name>.json')
 def load_topology(name):
     filename = 'dataset/sources/%s.graphml' % (name)
@@ -39,11 +49,14 @@ def load_topology(name):
     nindex = {}
     for n in g.nodes():
         nindex[n] = len(nodes)
-        g.nodes[n]['id'] = n
-        g.nodes[n]['r'] = radius[n]
-        g.nodes[n]['x'] = pos[n][0]
-        g.nodes[n]['y'] = pos[n][1]
-        nodes += [g.nodes[n]]
+        node = {}
+        node['id'] = n
+        node['r'] = radius[n]
+        node['x'] = pos[n][0]
+        node['y'] = pos[n][1]
+        node['label'] = g.nodes[n].get('label', '')
+        node['proplist'], node['properties'] = cleanup_node(g.nodes[n])
+        nodes += [node]
 
     g.nindex = nindex
 
