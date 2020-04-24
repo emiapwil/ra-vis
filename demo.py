@@ -27,20 +27,21 @@ def get_topology_list():
     topo_list = sorted(map(lambda f: f.split('/')[-1].split('.')[0], file_list))
     return json.dumps(list(topo_list))
 
-def cleanup_node(node):
-    node = node.copy()
-    if 'x' in node:
-        del node['x']
-    if 'y' in node:
-        del node['y']
-    if 'label' in node:
-        del node['label']
-    return list(node.keys()), node
+def cleanup(origin, eid):
+    element = origin.copy()
+    if 'x' in element:
+        del element['x']
+    if 'y' in element:
+        del element['y']
+    if 'label' in element:
+        del element['label']
+    element['id'] = eid
+    return list(element.keys()), element
 
 @app.route('/topology/<name>.json')
 def load_topology(name):
     filename = 'dataset/sources/%s.graphml' % (name)
-    g = nx.read_graphml(filename)
+    g = nx.read_graphml(filename).to_undirected()
 
     pos = nx.nx_pydot.graphviz_layout(g)
     radius = {n: g.degree(n) for n in g.nodes}
@@ -55,7 +56,7 @@ def load_topology(name):
         node['x'] = pos[n][0]
         node['y'] = pos[n][1]
         node['label'] = g.nodes[n].get('label', '')
-        node['proplist'], node['properties'] = cleanup_node(g.nodes[n])
+        node['proplist'], node['properties'] = cleanup(g.nodes[n], n)
         nodes += [node]
 
     g.nindex = nindex
@@ -64,7 +65,7 @@ def load_topology(name):
 
     links = []
     for u, v, e in g.edges(data=True):
-        link = e.copy()
+        e['proplist'], e['properties'] = cleanup(e, len(links))
         e['id'] = len(links)
         e['source'] = nindex[u]
         e['target'] = nindex[v]
@@ -75,12 +76,9 @@ def load_topology(name):
 
 @app.route('/query', methods=['POST'])
 def query():
-    expr = request.data
-    print(expr)
-    app.trident.query(expr)
-    g = app.trident.get_topology()
-    nodes = [g.nindex[n] for n in g.nodes()][len(expr):len(expr)*2]
-    return json.dumps(nodes)
+    expr = str(request.data)
+    path = app.trident.query(expr)
+    return json.dumps(path)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,168 @@
+select {
+    width: 100%;
+}
+
+textarea {
+    width: 100%;
+    min-height: 200px;
+}
+.node {
+    fill: #ccc;
+    stroke: #fff;
+    stroke-width: 2px;
+}
+
+table {
+    padding-left: 20px;
+    padding-right: 20px;
+    min-width: 300px;
+}
+
+caption {
+    padding-left: 10px;
+    color: white;
+    font-weight: bold;
+    font-style: italic;
+}
+
+.node[view=true], .link[view=true] {
+    fill: black;
+    stroke: black;
+    stroke-width: 3px;
+}
+
+.node[selected=true] {
+    stroke: #0066cc;
+    stroke-width: 3px;
+}
+
+.link {
+    stroke: #777;
+    stroke-width: 2px;
+}
+
+.link[selected=true] {
+    stroke: #0066cc;
+    stroke-width: 4px;
+}
+
+#inputs h6 {
+    margin-top: 2em;
+}
+
+.wrapper {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+}
+
+#sidebar {
+    width: 400px;
+    min-height: 100vh;
+}
+
+.sidebar-footer {
+    position: absolute;
+    bottom: 0px;
+}
+
+#content {
+    width: calc(100vw - 400px);
+}
+
+#sidebar.active {
+    margin-left: -400px;
+}
+
+#sidebar {
+    /* don't forget to add all the previously mentioned styles here too */
+    color: #fff;
+    transition: all 0.3s;
+}
+
+#sidebar .sidebar-header {
+    padding: 20px;
+}
+
+#sidebar ul.components {
+    padding: 20px 0;
+    border-bottom: 1px solid #777;
+}
+
+#sidebar ul p {
+    color: #fff;
+    padding: 10px;
+}
+
+#sidebar ul li a {
+    padding: 10px;
+    font-size: 1.1em;
+    display: block;
+}
+#sidebar ul li a:hover {
+    color: black;
+}
+
+#sidebar ul li.active > a, a[aria-expanded="true"] {
+    color: #fff;
+}
+
+ul ul a {
+    font-size: 0.9em !important;
+    padding-left: 30px !important;
+    background: black;
+}
+
+#toolbox-wrapper {
+    position: absolute;
+    top: 50px;
+    margin-left: 50px;
+}
+
+#toolbox-wrapper button {
+    height: 40px;
+    min-width: 40px;
+}
+
+.collapse-toggle::after {
+    content: "\00BB";
+    color: white;
+    font-weight: bold;
+    font-size: 200%;
+    line-height: 0.8em;
+}
+.collapse-toggle::after[aria-expanded="false"] {
+    content: "\00BB";
+}
+.collapse-toggle[aria-expanded="true"]::after {
+    content: "\00AB";
+}
+
+#toolbox {
+    position: relative;
+}
+
+.collapse.width {
+    height: auto;
+    -webkit-transition: width 0.5s ease;
+    -moz-transition: width 0.5s ease;
+    -o-transition: width 0.5s ease;
+    transition: width 0.5s ease;
+}
+
+#canvas {
+    padding-top: 100px;
+    width: 100%;
+    height: calc(100vh - 100px);
+    text-align: center;
+}
+
+#content {
+    height: 100vh;
+    overflow-y: hidden;
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+}
