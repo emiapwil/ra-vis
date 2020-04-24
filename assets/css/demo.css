@@ -80,7 +80,7 @@ caption {
     transition: all 0.3s;
 }
 
-#sidebar .sidebar-header {
+.sidebar-header, .sidebar-footer {
     padding: 20px;
 }
 
