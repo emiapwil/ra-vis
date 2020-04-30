@@ -1,0 +1,116 @@
+start: statement [(";" | NEWLINE ~ 2) statement]*
+
+statement: load_statement
+         | define_statement
+         | set_statement
+         | select_statement
+         | COMMENT
+         | NEWLINE
+
+
+load_statement: LOAD TOPONAME AS VARNAME
+
+define_statement: DEFINE DATA_TYPE data_spec element_selection
+
+DATA_TYPE: PROPERTY | COST
+
+data_spec: prop_ref "," VARTYPE "," DEFAULT -> property_spec
+         | prop_ref "," VARTYPE "," DEFAULT "," accum_func -> cost_spec
+
+set_statement: SET DATA_TYPE prop_ref ["," VALUE] element_selection
+
+element_selection: for_each_clause [that_clause]
+
+for_each_clause: FOR EACH ELEMENT_TYPE IN VARNAME
+that_clause: THAT prop_constraint
+
+ELEMENT_TYPE: NODE | LINK | PORT
+
+prop_constraint:  [prop_constraint OR] and_prop_constraint
+
+and_prop_constraint:  [and_prop_constraint "AND" ]atom_prop_constraint
+
+atom_prop_constraint: "(" prop_constraint ")" -> encap_prop_constraint
+                    | operand BINOP operand -> basic_prop_constraint
+                    | "NOT" atom_prop_constraint -> not_prop_constraint
+
+operand: prop_ref
+       | VALUE
+
+prop_ref: [WAYPOINT "::"] [VARNAME "."] VARNAME
+
+BINOP: ">"
+     | ">="
+     | "<"
+     | "<="
+     | "="
+     | "!="
+
+select_statement: [opt_clause] select_clause [where_clause] [as_clause]
+
+select_clause: SELECT ra_expr IN VARNAME
+as_clause: AS VARNAME
+ra_expr: (WAYPOINT RA_OP)+ WAYPOINT
+
+WAYPOINT: IDENTIFIER
+
+RA_OP: ":-:" | ":=:" | ":<:" | ":>:"
+
+opt_clause: OPT VARNAME WHEN
+where_clause: WHERE prop_constraint
+
+// Keywords
+
+AS: "AS"
+DEFINE: "DEFINE"
+EACH: "EACH"
+FOR: "FOR"
+IN: "IN"
+LOAD: "LOAD"
+OPT: "OPT"
+SELECT: "SELECT" | "WATCH"
+SET: "SET"
+THAT: "THAT"
+WHEN: "WHEN"
+WHERE: "WHERE"
+
+INT_TYPE: "int"
+STRING_TYPE: "str"
+FLOAT_TYPE: "float"
+
+AND: "AND"
+OR: "OR"
+NOT: "NOT"
+
+PROPERTY: "PROPERTY"
+COST: "COST"
+
+NODE: "NODE"
+LINK: "LINK"
+PORT: "PORT"
+
+ADD: "+" | "add"
+MIN: "min"
+MAX: "max"
+
+
+TOPONAME: IDENTIFIER
+VARNAME:  IDENTIFIER
+VARTYPE: INT_TYPE | STRING_TYPE | FLOAT_TYPE
+DEFAULT: VALUE
+VALUE: STRING | NUMBER
+accum_func: ADD | MIN | MAX
+
+IDENTIFIER: /[A-Za-z_][A-Za-z_0-9]*/
+
+%import common (WORD, NUMBER)
+%import common.ESCAPED_STRING -> STRING
+%import common (WS, WS_INLINE)
+
+COMMENT: /\/\/[^\n]*/
+NEWLINE: ( /\r?\n[\t ]*/)
+
+%ignore WS
+%ignore WS_INLINE
+%ignore COMMENT
+%ignore NEWLINE

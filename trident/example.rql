@@ -1,0 +1,22 @@
+// load a topology from a file
+LOAD path AS topology
+// make a comment
+DEFINE COST hopcount, int, 1 FOR EACH LINK IN topology
+
+SET COST hopcount FOR EACH LINK IN topology THAT source = "n1" AND target = "n2"
+
+OPT hopcount WHEN
+SELECT src :-: dst
+IN topology
+WHERE (src::id = n1 OR src::id = n3) AND dst::id = n2
+AS view
+
+OPT hopcount WHEN
+WATCH src :-: firewall :<: dst
+IN topology
+WHERE src::id = n1 AND firewall::id = n3 AND dst::id = n2
+
+SELECT src :-: dst
+IN topology
+WHERE src::id = n1 AND dst::id = n2
+AS view
