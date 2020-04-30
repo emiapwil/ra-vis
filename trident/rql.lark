@@ -4,20 +4,22 @@ statement: load_statement
          | define_statement
          | set_statement
          | select_statement
+         | drop_statement
          | COMMENT
          | NEWLINE
 
 
 load_statement: LOAD TOPONAME AS VARNAME
+drop_statement: DROP var_ref
 
 define_statement: DEFINE DATA_TYPE data_spec element_selection
 
 DATA_TYPE: PROPERTY | COST
 
-data_spec: prop_ref "," VARTYPE "," DEFAULT -> property_spec
-         | prop_ref "," VARTYPE "," DEFAULT "," accum_func -> cost_spec
+data_spec: var_ref "," VARTYPE "," DEFAULT -> property_spec
+         | var_ref "," VARTYPE "," DEFAULT "," accum_func -> cost_spec
 
-set_statement: SET DATA_TYPE prop_ref ["," VALUE] element_selection
+set_statement: SET DATA_TYPE var_ref ["," VALUE] element_selection
 
 element_selection: for_each_clause [that_clause]
 
@@ -34,10 +36,10 @@ atom_prop_constraint: "(" prop_constraint ")" -> encap_prop_constraint
                     | operand BINOP operand -> basic_prop_constraint
                     | "NOT" atom_prop_constraint -> not_prop_constraint
 
-operand: prop_ref
+operand: var_ref
        | VALUE
 
-prop_ref: [WAYPOINT "::"] [VARNAME "."] VARNAME
+var_ref: [WAYPOINT "::"] [VARNAME "."] VARNAME
 
 BINOP: ">"
      | ">="
@@ -63,6 +65,7 @@ where_clause: WHERE prop_constraint
 
 AS: "AS"
 DEFINE: "DEFINE"
+DROP: "DROP"
 EACH: "EACH"
 FOR: "FOR"
 IN: "IN"
