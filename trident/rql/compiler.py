@@ -17,7 +17,7 @@ class RqlCompiler(Visitor):
 
     def load_statement(self, ast):
         _, toponame, _, varname = ast.children
-        ast.cmd = LoadCommand(toponame, varname)
+        ast.cmd = LoadCommand(toponame, varname.value)
 
     def define_statement(self, ast):
         _, data_type, data_spec, selection = ast.children

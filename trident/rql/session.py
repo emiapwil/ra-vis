@@ -13,6 +13,8 @@ class GraphDB():
 
         for u, v, e in g.edges(data=True):
             e['id'] = len(self.edges)
+            e['source'] = u
+            e['target'] = v
             self.edges[e['id']] = e
             self.ports['%s:%s' % (u, e['id'])] = {u, e['id']}
             self.ports['%s:%s' % (v, e['id'])] = {v, e['id']}
@@ -104,6 +106,8 @@ class RqlSession(object):
             self.set_value(cmd)
         elif isinstance(cmd, SelectCommand):
             self.select(cmd)
+        elif isinstance(cmd, ShowCommand):
+            self.show(cmd)
 
     def load(self, cmd):
         toponame = cmd.toponame
@@ -117,7 +121,7 @@ class RqlSession(object):
         self.variables[varname] = gdb
 
     def drop(self, cmd):
-        var_ref = cmd.var_ref
+        var_ref = str(cmd.var_ref)
 
         if var_ref in self.variables:
             var = self.variables[var_ref]
@@ -126,7 +130,7 @@ class RqlSession(object):
             del self.variables[var_ref]
 
     def define(self, cmd):
-        var_ref = cmd.selection.toponame
+        var_ref = str(cmd.selection.toponame)
 
         if var_ref in self.variables:
             var = self.variables[var_ref]
@@ -138,6 +142,11 @@ class RqlSession(object):
     def select(self, cmd):
         pass
 
+    def show(self, cmd):
+        var_ref = str(cmd.var_ref)
+        if var_ref in self.variables:
+            var = self.variables[var_ref]
+            print(var)
 
 if __name__ == '__main__':
     import sys
