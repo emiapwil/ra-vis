@@ -28,14 +28,33 @@ class SetCommand():
         return 'SET %s %s = %s %s' % (self.data_type, self.varname,
                                           self.value, self.selection)
 
-class DataSpec():
-    def __init__(self, varname, vartype, default_value):
-        self.varname = varname
-        self.vartype = vartype
-        self.default_value = default_value
+class ShowCommand():
+    def __init__(self, var_ref, selection):
+        self.var_ref = var_ref
+        self.selection = selection
 
     def __str__(self):
-        return '(%s : %s = %s)' % (self.varname, self.vartype, self.default_value)
+        return 'SHOW %s %s' % (self.var_ref, self.selection)
+
+class DataSpec():
+    def __init__(self, varname, vartype, default_value, accum_func=None):
+        self.varname = varname
+        self.vartype = vartype
+        if vartype == 'int':
+            self.default_value = int(default_value)
+        elif vartype == 'float':
+            self.default_value = float(default_value)
+        else:
+            self.default_value = default_value
+        if accum_func is None:
+            self.data_type = 'PROPERTY'
+        else:
+            self.accum_func = accum_func
+            self.data_type = 'COST'
+
+    def __str__(self):
+        return '%s( %s: %s = %s)' % (self.data_type, self.varname,
+                                     self.vartype, self.default_value)
 
 class ElementSelection():
     def __init__(self, toponame, element_type, constraints):
@@ -117,3 +136,6 @@ class SelectCommand():
 class DropCommand():
     def __init__(self, var_ref):
         self.var_ref = var_ref
+
+    def __str__(self):
+        return 'DROP %s' % (self.var_ref)

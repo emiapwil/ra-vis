@@ -5,6 +5,7 @@ statement: load_statement
          | set_statement
          | select_statement
          | drop_statement
+         | show_statement
          | COMMENT
          | NEWLINE
 
@@ -17,7 +18,7 @@ define_statement: DEFINE DATA_TYPE data_spec element_selection
 DATA_TYPE: PROPERTY | COST
 
 data_spec: var_ref "," VARTYPE "," DEFAULT -> property_spec
-         | var_ref "," VARTYPE "," DEFAULT "," accum_func -> cost_spec
+         | var_ref "," VARTYPE "," DEFAULT "," ACCUM_FUNC -> cost_spec
 
 set_statement: SET DATA_TYPE var_ref ["," VALUE] element_selection
 
@@ -61,6 +62,8 @@ RA_OP: ":-:" | ":=:" | ":<:" | ":>:"
 opt_clause: OPT VARNAME WHEN
 where_clause: WHERE prop_constraint
 
+show_statement: SHOW var_ref [element_selection]
+
 // Keywords
 
 AS: "AS"
@@ -73,6 +76,7 @@ LOAD: "LOAD"
 OPT: "OPT"
 SELECT: "SELECT" | "WATCH"
 SET: "SET"
+SHOW: "SHOW"
 THAT: "THAT"
 WHEN: "WHEN"
 WHERE: "WHERE"
@@ -102,7 +106,7 @@ VARNAME:  IDENTIFIER
 VARTYPE: INT_TYPE | STRING_TYPE | FLOAT_TYPE
 DEFAULT: VALUE
 VALUE: STRING | NUMBER
-accum_func: ADD | MIN | MAX
+ACCUM_FUNC: ADD | MIN | MAX
 
 IDENTIFIER: /[A-Za-z_][A-Za-z_0-9]*/
 

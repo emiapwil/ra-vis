@@ -4,7 +4,7 @@ from trident.rql.common import *
 class RqlCompiler(Visitor):
     def __init__(self, larkfile):
         with open(larkfile) as f:
-            self.parser = Lark(f.read())
+            self.parser = Lark(f.read(), propagate_positions=True)
         self.commands = []
 
     def start(self, ast):
@@ -21,8 +21,14 @@ class RqlCompiler(Visitor):
 
     def define_statement(self, ast):
         _, data_type, data_spec, selection = ast.children
-        data_spec = data_spec.spec # TODO
-        selection = selection.selection # TODO
+        data_spec = data_spec.spec
+        if data_type != data_spec.data_type:
+            raise Exception('Definition type mismatch at Line %s: %s, %s'
+                            % (ast.meta.line, data_type, data_spec))
+        selection = selection.selection
+        if selection.constraints is not None:
+            raise Exception('DEFINE statement MUST NOT have constraints at Line %s'
+                            % (ast.meta.line))
         ast.cmd = DefineCommand(data_type, data_spec, selection)
 
     def property_spec(self, ast):
@@ -31,6 +37,14 @@ class RqlCompiler(Visitor):
         vartype = vartype.value
         value = value.value
         ast.spec = DataSpec(varname, vartype, value)
+
+    def cost_spec(self, ast):
+        varname, vartype, value, accum_func = ast.children
+        varname = varname.value
+        vartype = vartype.value
+        value = value.value
+        accum_func = accum_func.value
+        ast.spec = DataSpec(varname, vartype, value, accum_func)
 
     def element_selection(self, ast):
         for_each = ast.children[0]
@@ -152,6 +166,14 @@ class RqlCompiler(Visitor):
 
     def drop_statement(self, ast):
         ast.cmd = DropCommand(ast.children[1].value)
+
+    def show_statement(self, ast):
+        if len(ast.children) == 2:
+            selection = None
+        else:
+            selection = ast.children[2].selection
+        var_ref = ast.children[1].value
+        ast.cmd = ShowCommand(var_ref, selection)
 
     def compile(self, program, show_ast=False):
         self.commands = []
