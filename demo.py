@@ -86,4 +86,4 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         print(load_topology(sys.argv[2]))
     else:
-        app.run(debug=True)
+        app.run(host='0.0.0.0', debug=True)

@@ -1,8 +1,8 @@
 
 var tridentFrontend = function () {
-  const topoListUrl = 'http://localhost:5000/topologylist.json';
-  const setTopologyUrl = 'http://localhost:5000/topology/{0}.json';
-  const queryUrl = 'http://localhost:5000/query';
+  const topoListUrl = '/topologylist.json';
+  const setTopologyUrl = '/topology/{0}.json';
+  const queryUrl = '/query';
 
   var config = {
     margin: 15,
