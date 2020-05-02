@@ -223,8 +223,8 @@ class RqlSession(object):
         var_ref = str(cmd.selection.toponame)
         if var_ref in self.variables:
             var = self.variables[var_ref]
-            var.set_annotation(cmd.data_type, str(cmd.varname), cmd.value, cmd.selection)
-        pass
+            varname = str(cmd.varname)
+            var.set_annotation(cmd.data_type, cmd.varname, cmd.value, cmd.selection)
 
     def select(self, cmd):
         pass
