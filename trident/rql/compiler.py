@@ -74,7 +74,7 @@ class RqlCompiler(Visitor):
         else:
             _, data_type, varname, value, selection = ast.children
         selection = selection.selection
-        ast.cmd = SetCommand(data_type, varname.value, value, selection)
+        ast.cmd = SetCommand(data_type, varname.value, value.value, selection)
 
     def prop_constraint(self, ast):
         if len(ast.children) == 1:
@@ -174,6 +174,24 @@ class RqlCompiler(Visitor):
             selection = ast.children[2].selection
         var_ref = ast.children[1].value
         ast.cmd = ShowCommand(var_ref, selection)
+
+    def default(self, ast):
+        ast.value = ast.children[0].value
+
+    def value(self, ast):
+        print(ast)
+
+    def number(self, ast):
+        value = ast.children[0].value
+        if '.' in value:
+            ast.value = float(value)
+        else:
+            ast.value = int(value)
+        print(ast.value)
+
+    def string(self, ast):
+        value = ast.children[0].value
+        ast.value = value.strip('\"')
 
     def compile(self, program, show_ast=False):
         self.commands = []

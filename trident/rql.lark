@@ -17,10 +17,10 @@ define_statement: DEFINE DATA_TYPE data_spec element_selection
 
 DATA_TYPE: PROPERTY | COST
 
-data_spec: var_ref "," VARTYPE "," DEFAULT -> property_spec
-         | var_ref "," VARTYPE "," DEFAULT "," ACCUM_FUNC -> cost_spec
+data_spec: var_ref "," VARTYPE "," default -> property_spec
+         | var_ref "," VARTYPE "," default "," ACCUM_FUNC -> cost_spec
 
-set_statement: SET DATA_TYPE var_ref ["," VALUE] element_selection
+set_statement: SET DATA_TYPE var_ref ["," value] element_selection
 
 element_selection: for_each_clause [that_clause]
 
@@ -38,7 +38,7 @@ atom_prop_constraint: "(" prop_constraint ")" -> encap_prop_constraint
                     | "NOT" atom_prop_constraint -> not_prop_constraint
 
 operand: var_ref
-       | VALUE
+       | value
 
 var_ref: [WAYPOINT "::"] [VARNAME "."] VARNAME
 
@@ -104,13 +104,15 @@ MAX: "max"
 TOPONAME: IDENTIFIER
 VARNAME:  IDENTIFIER
 VARTYPE: INT_TYPE | STRING_TYPE | FLOAT_TYPE
-DEFAULT: VALUE
-VALUE: STRING | NUMBER
+default: value
+value: STRING -> string
+     | NUMBER -> number
 ACCUM_FUNC: ADD | MIN | MAX
 
 IDENTIFIER: /[A-Za-z_][A-Za-z_0-9]*/
 
-%import common (WORD, NUMBER)
+%import common (WORD)
+%import common.NUMBER -> NUMBER
 %import common.ESCAPED_STRING -> STRING
 %import common (WS, WS_INLINE)
 

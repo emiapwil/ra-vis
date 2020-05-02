@@ -3,7 +3,7 @@ LOAD Colt AS topology
 // make a comment
 DEFINE COST hopcount, int, 1, add FOR EACH LINK IN topology
 
-SET COST hopcount FOR EACH LINK IN topology THAT source = "n1" AND target = "n2"
+SET COST hopcount, 2 FOR EACH LINK IN topology THAT source = "n145" AND target = "n151"
 
 OPT hopcount WHEN
 SELECT src :-: dst

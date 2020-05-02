@@ -40,17 +40,20 @@ class DataSpec():
     def __init__(self, varname, vartype, default_value, accum_func=None):
         self.varname = varname
         self.vartype = vartype
-        if vartype == 'int':
-            self.default_value = int(default_value)
-        elif vartype == 'float':
-            self.default_value = float(default_value)
-        else:
-            self.default_value = default_value
+        self.default_value = self.interpret(default_value)
         if accum_func is None:
             self.data_type = 'PROPERTY'
         else:
             self.accum_func = accum_func
             self.data_type = 'COST'
+
+    def interpret(self, value):
+        if self.vartype == 'int':
+            return int(value)
+        elif self.vartype == 'float':
+            return float(value)
+        else:
+            return str(value).strip('\"')
 
     def __str__(self):
         return '%s( %s: %s = %s)' % (self.data_type, self.varname,
