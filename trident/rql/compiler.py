@@ -83,12 +83,12 @@ class RqlCompiler(Visitor):
             c1, op, c2 = ast.children
             ast.constraints = CompoundConstraint(c1.constraints, op, c2.constraints)
 
-    def and_prop_constraint(self, ast):
+    def or_prop_constraint(self, ast):
         if len(ast.children) == 1:
             ast.constraints = ast.children[0].constraints
         else:
-            c1, c2 = ast.children
-            ast.constraints = CompoundConstraint(c1.constraints, 'AND', c2.constraints)
+            c1, op, c2 = ast.children
+            ast.constraints = CompoundConstraint(c1.constraints, op, c2.constraints)
 
     def encap_prop_constraint(self, ast):
         ast.constraints = ast.children[0].constraints
@@ -184,14 +184,13 @@ class RqlCompiler(Visitor):
     def number(self, ast):
         value = ast.children[0].value
         if '.' in value:
-            ast.value = float(value)
+            ast.value = Value('float', float(value))
         else:
-            ast.value = int(value)
-        print(ast.value)
+            ast.value = Value('int', int(value))
 
     def string(self, ast):
         value = ast.children[0].value
-        ast.value = value.strip('\"')
+        ast.value = Value('string', value.strip('\"'))
 
     def compile(self, program, show_ast=False):
         self.commands = []

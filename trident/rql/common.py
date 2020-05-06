@@ -40,7 +40,7 @@ class DataSpec():
     def __init__(self, varname, vartype, default_value, accum_func=None):
         self.varname = varname
         self.vartype = vartype
-        self.default_value = self.interpret(default_value)
+        self.default_value = default_value
         if accum_func is None:
             self.data_type = 'PROPERTY'
         else:
@@ -76,11 +76,25 @@ class VarRef():
         self.waypoint = waypoint
         self.path = path
 
+    def __repr__(self):
+        s = ''
+        if self.waypoint is not None:
+            s += '%s::' % (self.waypoint)
+        return 'ref(%s%s)' % (s, '.'.join(self.path))
+
     def __str__(self):
         s = ''
         if self.waypoint is not None:
             s += '%s::' % (self.waypoint)
         return '%s%s' % (s, '.'.join(self.path))
+
+class Value():
+    def __init__(self, vtype, value):
+        self.vtype = vtype
+        self.value = value
+
+    def __str__(self):
+        return '%s (%s)' % (self.value, self.vtype)
 
 class BasicConstraint():
     def __init__(self, lhs, op, rhs):

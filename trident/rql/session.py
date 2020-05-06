@@ -60,9 +60,9 @@ class GraphDB():
     def set_annotation(self, data_type, var_ref, value, selection):
         if data_type == 'COST':
             if var_ref not in self.cost_specs:
-                raise Exception('%s is not defined as cost' % (var_ref))
+                raise Exception('%s is not defined as COST' % (var_ref))
         elif var_ref in self.cost_specs:
-            raise Exception('%s is defined as cost' % (var_ref))
+            raise Exception('%s is defined as COST' % (var_ref))
         element_type = selection.element_type
         if element_type == 'NODE':
             if var_ref not in self.node_prop_specs:
@@ -78,7 +78,7 @@ class GraphDB():
             data_spec = self.port_prop_specs[var_ref]
         if data_spec.element_type != selection.element_type:
             raise Exception('Bad selection: element type mismatch')
-        value = data_spec.interpret(value)
+        value = data_spec.interpret(value.value)
 
         self.set_prop_values(var_ref, value, selection)
 
@@ -89,9 +89,13 @@ class GraphDB():
             elements[e][propname] = value
 
     def get_prop_value(self, element, element_type, props, prop):
-        if prop in props:
-            spec = props[prop]
-            return element.get(prop, spec.default_value)
+        if isinstance(prop, VarRef):
+            prop = str(prop)
+            if prop in props:
+                spec = props[prop]
+                return element.get(prop, spec.default_value)
+        elif isinstance(prop, Value):
+            return prop.value
         else:
             return prop
 
@@ -115,9 +119,9 @@ class GraphDB():
         if constraints is None:
             return True
         elif isinstance(constraints, BasicConstraint):
-            lhs = str(constraints.lhs)
-            op = str(constraints.op)
-            rhs = str(constraints.rhs)
+            lhs = constraints.lhs
+            op = constraints.op
+            rhs = constraints.rhs
 
             lhs = self.get_prop_value(element, element_type, props, lhs)
             rhs = self.get_prop_value(element, element_type, props, rhs)
@@ -149,6 +153,123 @@ class GraphDB():
             elements = self.ports
             props = self.port_prop_specs
         return {e: elements[e] for e in elements if self.apply_constraint(elements[e], element_type, props, constraints)}
+
+    def analyze_constraints(self, ra_expr, constraints):
+        wpc, nc, ec = self.recursive_analyze_constraints(constraints)
+        for wp in ra_expr.waypoints:
+            if wp not in wpc:
+                raise Exception('Missing constraints on waypoint %s' % (wp))
+        return wpc, nc, ec
+
+    def merge_constraints(self, lhs, op, rhs):
+        if lhs is None:
+            return rhs
+        if rhs is None:
+            return lhs
+        return CompoundConstraint(lhs, op, rhs)
+
+    def get_waypoints(self, constraints):
+        lhs = constraints.lhs
+        rhs = constraints.rhs
+        waypoints = set()
+        if isinstance(lhs, VarRef) and lhs.waypoint is not None:
+            waypoints |= {lhs.waypoint}
+        if isinstance(rhs, VarRef) and rhs.waypoint is not None:
+            waypoints |= {rhs.waypoint}
+        if len(waypoints) > 1:
+            raise Exception('Cross-waypoint constraint is not supported: %s'
+                            % (constraints))
+        if len(waypoints) == 1:
+            if isinstance(lhs, VarRef) and lhs.waypoint is None:
+                print(lhs)
+                raise Exception('Invalid constraint: %s' % (constraints))
+            if isinstance(rhs, VarRef) and rhs.waypoint is None:
+                print(rhs)
+                raise Exception('Invalid constraint: %s' % (constraints))
+        return waypoints
+
+    def lookup_data_spec(self, var_ref):
+        ref = str(var_ref)
+        if ref in self.node_prop_specs:
+            return 'NODE', self.node_prop_specs[ref]
+        if ref in self.edge_prop_specs:
+            return 'LINK', self.edge_prop_specs[ref]
+        else:
+            return None, None
+
+    def get_element_types(self, constraints):
+        lhs = constraints.lhs
+        rhs = constraints.rhs
+        element_types = set()
+        e1, s1 = self.lookup_data_spec(lhs)
+        if e1 is not None:
+            element_types |= {e1}
+        e2, s2 = self.lookup_data_spec(rhs)
+        if e2 is not None:
+            element_types |= {e2}
+        if len(element_types) > 1:
+            raise Exception('Invalid constraint: %s' % (constraints))
+        return element_types
+
+    def recursive_analyze_constraints(self, constraints):
+        if constraints is None:
+            return {}, None, None
+        lhs, op, rhs = constraints.lhs, constraints.op, constraints.rhs
+        if isinstance(constraints, BasicConstraint):
+            waypoints = self.get_waypoints(constraints)
+            if len(waypoints) == 1:
+                waypoint = list(waypoints)[0]
+                if isinstance(lhs, VarRef):
+                    lhs = VarRef(None, lhs.path)
+                if isinstance(rhs, VarRef):
+                    rhs = VarRef(None, rhs.path)
+                constraints = BasicConstraint(lhs, op, rhs)
+                return {waypoint: constraints}, None, None
+            else:
+                element_types = self.get_element_types(constraints)
+                element_type = list(element_types)[0]
+                if element_type == 'NODE':
+                    return {}, constraints, None
+                else:
+                    return {}, None, constraints
+        elif constraints.op == 'AND':
+            wpc1, nc1, ec1 = self.recursive_analyze_constraints(lhs)
+            wpc2, nc2, ec2 = self.recursive_analyze_constraints(rhs)
+            wpc = {}
+            for wp in wpc1.keys() | wpc2.keys():
+                wpc[wp] = self.merge_constraints(wpc1.get(wp, None), op, wpc2.get(wp, None))
+            nc = self.merge_constraints(nc1, op, nc2)
+            ec = self.merge_constraints(ec1, op, ec2)
+            return wpc, nc, ec
+        elif constraints.op == 'OR':
+            wpc1, nc1, ec1 = self.recursive_analyze_constraints(lhs)
+            wpc2, nc2, ec2 = self.recursive_analyze_constraints(rhs)
+            wpc = {}
+            wpc_keys = wpc1.keys() | wpc2.keys()
+            if len(wpc_keys) > 1:
+                raise Exception("Invalid constraint: %s" % (constraints))
+            types = 0
+            if len(wpc_keys) > 0:
+                types += 1
+            if nc1 is not None or nc2 is not None:
+                types += 1
+            if ec1 is not None or ec2 is not None:
+                types += 1
+            if types != 1:
+                raise Exception('Invalid constraint: %s' % (constraints))
+            for wp in wpc_keys:
+                wpc[wp] = self.merge_constraints(wpc1.get(wp, None), op, wpc2.get(wp, None))
+            nc = self.merge_constraints(nc1, op, nc2)
+            ec = self.merge_constraints(ec1, op, ec2)
+            return wpc, nc, ec
+        elif constraints.op == 'NOT':
+            wpc1, nc1, ec1 = self.recursive_analyze_constraints(lhs)
+            wpc = {}
+            for wp in wpc1:
+                wpc[wp] = self.merge_constraints(wpc1[wp], op, None)
+            nc = self.merge_constraints(nc1, op, None)
+            ec = self.merge_constraints(ec1, op, None)
+            return wpc, nc, ec
 
     def __str__(self):
         nps = self.node_prop_specs
@@ -224,10 +345,21 @@ class RqlSession(object):
         if var_ref in self.variables:
             var = self.variables[var_ref]
             varname = str(cmd.varname)
-            var.set_annotation(cmd.data_type, cmd.varname, cmd.value, cmd.selection)
+            var.set_annotation(cmd.data_type, varname, cmd.value, cmd.selection)
 
     def select(self, cmd):
-        pass
+        topo_ref = str(cmd.toponame)
+        if topo_ref in self.variables:
+            topo = self.variables[topo_ref]
+
+            if not isinstance(topo, GraphDB):
+                raise Exception('%s is not a valid topology' % (var_ref))
+            wpc, nc, ec = topo.analyze_constraints(cmd.ra_expr, cmd.constraints)
+            for wp in wpc:
+                print(wpc[wp])
+            print(nc)
+            print(ec)
+            #path = topo.select_path(wp_constraints, path_constraints, cmd.opt_obj)
 
     def show(self, cmd):
         var_ref = str(cmd.var_ref)

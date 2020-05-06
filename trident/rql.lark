@@ -29,9 +29,9 @@ that_clause: THAT prop_constraint
 
 ELEMENT_TYPE: NODE | LINK | PORT
 
-prop_constraint:  [prop_constraint OR] and_prop_constraint
+prop_constraint:  [prop_constraint AND] or_prop_constraint
 
-and_prop_constraint:  [and_prop_constraint "AND" ]atom_prop_constraint
+or_prop_constraint: [or_prop_constraint OR ]atom_prop_constraint
 
 atom_prop_constraint: "(" prop_constraint ")" -> encap_prop_constraint
                     | operand BINOP operand -> basic_prop_constraint
