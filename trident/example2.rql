@@ -20,3 +20,5 @@ SELECT src :-: dst
 IN topology
 WHERE src::id = "n1" AND dst::id = "n2"
 AS view
+
+SHOW view

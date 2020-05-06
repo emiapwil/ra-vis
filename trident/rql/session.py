@@ -426,7 +426,12 @@ class RqlSession(object):
             if not isinstance(topo, GraphDB):
                 raise Exception('%s is not a valid topology' % (var_ref))
             path = topo.select_path(cmd.ra_expr, cmd.constraints, cmd.opt_obj)
-            print(path)
+
+            if cmd.varname is not None:
+                varname = str(cmd.varname)
+                self.variables[varname] = path
+            else:
+                print(path)
 
     def show(self, cmd):
         var_ref = str(cmd.var_ref)
