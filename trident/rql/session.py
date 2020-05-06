@@ -47,8 +47,12 @@ class GraphDB():
                 data_spec.accum_func = lambda x, y: x + y
             elif data_spec.accum_func == 'min':
                 data_spec.accum_func = lambda x, y: min(x, y)
+                raise Exception('Accumulative Function %s is not supported'
+                                % (data_spec.accum_func))
             elif data_spec.accum_func == 'max':
                 data_spec.accum_func = lambda x, y: max(x, y)
+                raise Exception('Accumulative Function %s is not supported'
+                                % (data_spec.accum_func))
             else:
                 raise Exception('Accumulative Function %s is not supported'
                                 % (data_spec.accum_func))
@@ -277,6 +281,13 @@ class GraphDB():
             element_types |= {e2}
         if len(element_types) > 1:
             raise Exception('Invalid constraint: %s' % (constraints))
+        if len(element_types) == 1:
+            if isinstance(lhs, VarRef):
+                if str(lhs) in self.cost_specs:
+                    raise Exception('COST constraint is not supported: %s' % (constraints))
+            if isinstance(rhs, VarRef):
+                if str(rhs) in self.cost_specs:
+                    raise Exception('COST constraint is not supported: %s' % (constraints))
         return element_types
 
     def recursive_classify_constraints(self, constraints):
