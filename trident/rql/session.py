@@ -1,15 +1,21 @@
 from trident.rql.common import *
 
 import networkx as nx
+from networkx.algorithms import single_source_dijkstra as sssp
 from functools import reduce
 
 class GraphDB():
     def __init__(self, g):
         self.raw_graph = g
 
-        self.nodes = {n: g.nodes[n] for n in g.nodes()}
+        self.nodes = {}
         self.edges = {}
         self.ports = {}
+
+        for n in g.nodes():
+            node = g.nodes[n]
+            node['id'] = n
+            self.nodes[n] = node
 
         for u, v, e in g.edges(data=True):
             e['id'] = len(self.edges)
@@ -78,7 +84,6 @@ class GraphDB():
             data_spec = self.port_prop_specs[var_ref]
         if data_spec.element_type != selection.element_type:
             raise Exception('Bad selection: element type mismatch')
-        value = data_spec.interpret(value.value)
 
         self.set_prop_values(var_ref, value, selection)
 
@@ -86,7 +91,7 @@ class GraphDB():
         elements = self.select_element(selection.element_type,
                                        selection.constraints)
         for e in elements:
-            elements[e][propname] = value
+            elements[e][propname] = value.value
 
     def get_prop_value(self, element, element_type, props, prop):
         if isinstance(prop, VarRef):
@@ -142,7 +147,6 @@ class GraphDB():
             return True
 
     def select_element(self, element_type, constraints):
-        # TODO: ignore constraints for now
         if element_type == 'NODE':
             elements = self.nodes
             props = self.node_prop_specs
@@ -154,12 +158,76 @@ class GraphDB():
             props = self.port_prop_specs
         return {e: elements[e] for e in elements if self.apply_constraint(elements[e], element_type, props, constraints)}
 
-    def analyze_constraints(self, ra_expr, constraints):
-        wpc, nc, ec = self.recursive_analyze_constraints(constraints)
+    def select_path(self, ra_expr, constraints, opt_obj):
+        wpc, nc, ec = self.classify_constraints(ra_expr, constraints)
+        g = self.filter_graph(nc, ec)
+        waypoints = self.find_waypoints(wpc)
+        segments = zip(ra_expr.waypoints[:-1], ra_expr.waypoints[1:])
+        segment_paths = []
+        for src, dst in segments:
+            sources = waypoints[src]
+            targets = waypoints[dst]
+            segment = self.find_path(g, sources, targets, opt_obj)
+            segment_paths += [segment]
+        return self.merge_segments(segment_paths)
+
+    def classify_constraints(self, ra_expr, constraints):
+        wpc, nc, ec = self.recursive_classify_constraints(constraints)
         for wp in ra_expr.waypoints:
             if wp not in wpc:
                 raise Exception('Missing constraints on waypoint %s' % (wp))
-        return wpc, nc, ec
+            return wpc, nc, ec
+
+    def filter_graph(self, node_constraints, edge_constraints):
+        nodes = self.select_element('NODE', node_constraints)
+        edges = self.select_element('LINK', edge_constraints)
+
+        g = nx.MultiGraph()
+        g.add_nodes_from(nodes)
+        for e in edges:
+            e = edges[e]
+            u, v, d = e['source'], e['target'], e
+            if u in nodes and v in nodes:
+                g.add_edge(u, v, **d)
+
+        return g
+
+    def find_waypoints(self, waypoint_constraints):
+        waypoints = {}
+        for wp in waypoint_constraints:
+            waypoints[wp] = self.select_element('NODE', waypoint_constraints[wp])
+        return waypoints
+
+    def find_path(self, g, sources, targets, opt_obj):
+        ncosts = {}
+        npaths = {}
+        for src in sources:
+            costs, paths = sssp(g, src, weight=opt_obj)
+            ncosts[src] = { dst: costs[dst] for dst in targets }
+            npaths[src] = { dst: paths[dst] for dst in targets }
+        return (sources, targets, ncosts, npaths)
+
+    def merge_segments(self, segment_paths):
+        sources, _, _, _ = segment_paths[0]
+        costs = {}
+        paths = {}
+        for src in sources:
+            costs[src] = 0
+            paths[src] = [src]
+        argmin = lambda x, y: x if x[1] < y[1] else y
+        for segment in segment_paths:
+            s_srcs, s_dsts, s_costs, s_paths = segment
+            costs2 = {}
+            paths2 = {}
+            for i in s_dsts:
+                candidates = [(j, costs[j] + s_costs[j][i]) for j in s_srcs]
+                k, costs2[i] = reduce(argmin, candidates)
+                paths2[i] = paths[k] + s_paths[k][i][1:]
+            costs = costs2
+            paths = paths2
+
+        opt, _ = reduce(argmin, [(n, costs[n]) for n in costs])
+        return paths[opt]
 
     def merge_constraints(self, lhs, op, rhs):
         if lhs is None:
@@ -211,7 +279,7 @@ class GraphDB():
             raise Exception('Invalid constraint: %s' % (constraints))
         return element_types
 
-    def recursive_analyze_constraints(self, constraints):
+    def recursive_classify_constraints(self, constraints):
         if constraints is None:
             return {}, None, None
         lhs, op, rhs = constraints.lhs, constraints.op, constraints.rhs
@@ -233,8 +301,8 @@ class GraphDB():
                 else:
                     return {}, None, constraints
         elif constraints.op == 'AND':
-            wpc1, nc1, ec1 = self.recursive_analyze_constraints(lhs)
-            wpc2, nc2, ec2 = self.recursive_analyze_constraints(rhs)
+            wpc1, nc1, ec1 = self.recursive_classify_constraints(lhs)
+            wpc2, nc2, ec2 = self.recursive_classify_constraints(rhs)
             wpc = {}
             for wp in wpc1.keys() | wpc2.keys():
                 wpc[wp] = self.merge_constraints(wpc1.get(wp, None), op, wpc2.get(wp, None))
@@ -242,8 +310,8 @@ class GraphDB():
             ec = self.merge_constraints(ec1, op, ec2)
             return wpc, nc, ec
         elif constraints.op == 'OR':
-            wpc1, nc1, ec1 = self.recursive_analyze_constraints(lhs)
-            wpc2, nc2, ec2 = self.recursive_analyze_constraints(rhs)
+            wpc1, nc1, ec1 = self.recursive_classify_constraints(lhs)
+            wpc2, nc2, ec2 = self.recursive_classify_constraints(rhs)
             wpc = {}
             wpc_keys = wpc1.keys() | wpc2.keys()
             if len(wpc_keys) > 1:
@@ -263,7 +331,7 @@ class GraphDB():
             ec = self.merge_constraints(ec1, op, ec2)
             return wpc, nc, ec
         elif constraints.op == 'NOT':
-            wpc1, nc1, ec1 = self.recursive_analyze_constraints(lhs)
+            wpc1, nc1, ec1 = self.recursive_classify_constraints(lhs)
             wpc = {}
             for wp in wpc1:
                 wpc[wp] = self.merge_constraints(wpc1[wp], op, None)
@@ -274,13 +342,16 @@ class GraphDB():
     def __str__(self):
         nps = self.node_prop_specs
         eps = self.edge_prop_specs
+        nodes = self.nodes
+        edges = self.edges
+
         s = ''
-        for n in self.nodes:
-            node = self.nodes[n]
+        for n in nodes:
+            node = nodes[n]
             props = ', '.join(['%s=%s' % (s, node.get(s, '')) for s in nps])
             s += '%s: %s\n' % (n, props)
-        for e in self.edges:
-            edge = self.edges[e]
+        for e in edges:
+            edge = edges[e]
             props = ', '.join(['%s=%s' % (s, edge.get(s, '')) for s in eps])
             s += '%s: %s\n' % (e, props)
         return s
@@ -354,12 +425,8 @@ class RqlSession(object):
 
             if not isinstance(topo, GraphDB):
                 raise Exception('%s is not a valid topology' % (var_ref))
-            wpc, nc, ec = topo.analyze_constraints(cmd.ra_expr, cmd.constraints)
-            for wp in wpc:
-                print(wpc[wp])
-            print(nc)
-            print(ec)
-            #path = topo.select_path(wp_constraints, path_constraints, cmd.opt_obj)
+            path = topo.select_path(cmd.ra_expr, cmd.constraints, cmd.opt_obj)
+            print(path)
 
     def show(self, cmd):
         var_ref = str(cmd.var_ref)
