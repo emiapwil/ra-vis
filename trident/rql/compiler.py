@@ -9,8 +9,14 @@ class RqlCompiler(Visitor):
 
     def start(self, ast):
         commands = []
-        commands = list(filter(lambda c: isinstance(c, Tree), ast.children))
+        commands = list(filter(lambda c: isinstance(c, Tree), ast.children[0].children))
+        for c in commands:
+            print(c)
+            print(c.cmd)
         self.commands = list(map(lambda c: c.cmd, commands))
+
+    def statements(self, ast):
+        print(ast)
 
     def statement(self, ast):
         ast.cmd = ast.children[0].cmd

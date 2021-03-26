@@ -115,8 +115,8 @@ var tridentFrontend = function () {
   }
 
   function initializeGraph(data) {
-    nodes = data.nodes.map(d => Object.create(d));
-    links = data.links.map(d => Object.create(d));
+    nodes = data.nodes;
+    links = data.links;
 
     scaleTopologyLayout(nodes, links);
 
@@ -206,7 +206,7 @@ var tridentFrontend = function () {
     const url = format(setTopologyUrl, topo);
     console.log(url);
     fetch(url).then(r => r.json())
-      .then(data => initializeGraph(data));
+      .then(data => initializeGraph(data[0]));
   }
 
   const indexSelector = '.{0}[index="{1}"]'
@@ -224,12 +224,23 @@ var tridentFrontend = function () {
     });
   }
 
-  function updatePath(expr, selected) {
-    const selectedLinks = selected.map(s => links.filter(l => l.index == s)[0])
+  function matchLink(l, src, dst) {
+    return (l.source.id == src) && (l.target.id == dst);
+  }
 
-    select(currentQuery.selected, false, s => s);
+  function updatePath(expr, selected) {
+    console.log(selected);
+    const selectedLinks = selected.map(
+      d => links.filter(l => matchLink(l, d[0], d[1]) || matchLink(l, d[1], d[0]))[0]
+    )
+
+    console.log(selectedLinks);
+
+    select(currentQuery.selected, false, function (s, index) {
+      return s.transition().delay((index + 1) * config.transitionDelay);
+    });
     select(selectedLinks, true, function (s, index) {
-      return s.transition().delay((index + 1) * config.transitionDelay)
+      return s.transition().delay((index + 1) * config.transitionDelay);
     });
 
     currentQuery.expr = expr;
@@ -241,12 +252,22 @@ var tridentFrontend = function () {
     selected: []
   };
 
+  function dispatch(results) {
+    results.forEach(function (result, index){
+      if (result.type == 'path') {
+        updatePath(result.expr, result.path);
+      } else if (result.type == 'topology') {
+        initializeGraph(result.topology);
+      }
+    });
+  }
+
   function query(expr) {
     fetch(queryUrl, {
       body: expr,
       method: 'POST'
     }).then(r => r.json())
-      .then(selected => { updatePath(expr, selected); });
+      .then(results => dispatch(results));
   }
 
   return {
@@ -270,5 +291,5 @@ function submitQuery() {
 };
 
 function selectTopology(topo) {
-  tridentFrontend.setTopology(topo);
+  tridentFrontend.query('LOAD ' + topo + ' AS ' + topo + '; SHOW ' + topo);
 }

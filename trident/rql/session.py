@@ -4,6 +4,18 @@ import networkx as nx
 from networkx.algorithms import single_source_dijkstra as sssp
 from functools import reduce
 
+def cleanup(origin, eid):
+    element = origin.copy()
+    if 'x' in element:
+        del element['x']
+    if 'y' in element:
+        del element['y']
+    if 'label' in element:
+        del element['label']
+    element['id'] = eid
+    return list(element.keys()), element
+
+
 class GraphDB():
     def __init__(self, g):
         self.raw_graph = g
@@ -40,6 +52,36 @@ class GraphDB():
         self.cost_specs = {}
 
         self.views = {}
+
+    def data(self):
+        g = self.raw_graph
+        pos = nx.nx_pydot.graphviz_layout(g)
+        radius = {n: g.degree(n) for n in self.nodes}
+
+        nodes = []
+        nindex = {}
+        for n in self.nodes:
+            nindex[n] = len(nodes)
+            node = {}
+            node['id'] = n
+            node['r'] = radius[n]
+            node['x'] = pos[n][0]
+            node['y'] = pos[n][1]
+            node['label'] = g.nodes[n].get('label', '')
+            node['proplist'], node['properties'] = cleanup(self.nodes[n], n)
+            nodes += [node]
+
+        links = []
+        for eid in self.edges:
+            e = self.edges[eid]
+            edge = {}
+            edge['id'] = len(links)
+            edge['source'] = nindex[e['source']]
+            edge['target'] = nindex[e['target']]
+            edge['proplist'], edge['properties'] = cleanup(e, len(links))
+            links += [edge]
+
+        return {'nodes': nodes, 'links': links}
 
     def define_annotation(self, data_type, data_spec, selection):
         if data_type == 'COST':
@@ -215,6 +257,7 @@ class GraphDB():
         sources, _, _, _ = segment_paths[0]
         costs = {}
         paths = {}
+        print(segment_paths)
         for src in sources:
             costs[src] = 0
             paths[src] = [src]
@@ -378,21 +421,21 @@ class RqlSession(object):
 
     def execute(self, commands):
         for cmd in commands:
-            self.dispatch(cmd)
+            yield (cmd, self.dispatch(cmd))
 
     def dispatch(self, cmd):
         if isinstance(cmd, LoadCommand):
-            self.load(cmd)
+            return self.load(cmd)
         elif isinstance(cmd, DropCommand):
-            self.drop(cmd)
+            return self.drop(cmd)
         elif isinstance(cmd, DefineCommand):
-            self.define(cmd)
+            return self.define(cmd)
         elif isinstance(cmd, SetCommand):
-            self.set_value(cmd)
+            return self.set_value(cmd)
         elif isinstance(cmd, SelectCommand):
-            self.select(cmd)
+            return self.select(cmd)
         elif isinstance(cmd, ShowCommand):
-            self.show(cmd)
+            return self.show(cmd)
 
     def load(self, cmd):
         toponame = cmd.toponame
@@ -404,6 +447,7 @@ class RqlSession(object):
         gdb = GraphDB(g)
 
         self.variables[varname] = gdb
+        return 'Success'
 
     def drop(self, cmd):
         var_ref = str(cmd.var_ref)
@@ -413,6 +457,7 @@ class RqlSession(object):
             if isinstance(var, DataSpec):
                 pass # TODO
             del self.variables[var_ref]
+        return 'Success'
 
     def define(self, cmd):
         var_ref = str(cmd.selection.toponame)
@@ -421,6 +466,7 @@ class RqlSession(object):
             var = self.variables[var_ref]
             cmd.data_spec.varname = str(cmd.data_spec.varname)
             var.define_annotation(cmd.data_type, cmd.data_spec, cmd.selection)
+        return 'Success'
 
     def set_value(self, cmd):
         var_ref = str(cmd.selection.toponame)
@@ -428,6 +474,7 @@ class RqlSession(object):
             var = self.variables[var_ref]
             varname = str(cmd.varname)
             var.set_annotation(cmd.data_type, varname, cmd.value, cmd.selection)
+        return 'Success'
 
     def select(self, cmd):
         topo_ref = str(cmd.toponame)
@@ -441,14 +488,18 @@ class RqlSession(object):
             if cmd.varname is not None:
                 varname = str(cmd.varname)
                 self.variables[varname] = path
+                return varname
             else:
-                print(path)
+                return path
+        raise Exception('%s does not exist' % (topo_ref))
 
     def show(self, cmd):
         var_ref = str(cmd.var_ref)
         if var_ref in self.variables:
             var = self.variables[var_ref]
-            print(var)
+            print('var[%s]: ' % var_ref, var)
+            return var
+        raise Exception('%s does not exist' % (var_ref))
 
 if __name__ == '__main__':
     import sys

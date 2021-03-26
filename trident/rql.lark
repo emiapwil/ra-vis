@@ -1,4 +1,12 @@
-start: statement [(";" | NEWLINE ~ 2) statement]*
+start: statements
+
+statements: [statement SEP [NEWLINE | COMMENT | SEP]*]* statement [SEP]
+          | NEWLINE
+//          | [statements (";" | NEWLINE ~2)]* statements
+
+SEP: NEWLINE ~ 2
+   | COMMENT
+   | ";"
 
 statement: load_statement
          | define_statement
@@ -6,8 +14,6 @@ statement: load_statement
          | select_statement
          | drop_statement
          | show_statement
-         | COMMENT
-         | NEWLINE
 
 
 load_statement: LOAD TOPONAME AS VARNAME
